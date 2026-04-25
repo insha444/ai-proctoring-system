@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>AI Proctor — Create Account</title>
+<link rel="stylesheet" href="css/shared.css"/>
+<style>
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.auth-wrap {
+  width: 100%;
+  max-width: 440px;
+  animation: slide-up .3s ease;
+}
+
+.auth-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 36px;
+}
+
+.auth-brand .logo-mark {
+  width: 36px; height: 36px;
+  background: var(--text);
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+}
+
+.auth-brand .logo-mark svg { width: 20px; height: 20px; fill: var(--accent-inv); }
+.auth-brand span { font-size: 1rem; font-weight: 600; }
+
+.auth-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 32px;
+  box-shadow: var(--shadow);
+}
+
+.auth-footer {
+  text-align: center;
+  margin-top: 18px;
+  font-size: .83rem;
+  color: var(--muted);
+}
+.auth-footer a {
+  color: var(--text);
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Role selector */
+.role-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.role-card {
+  position: relative;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  cursor: pointer;
+  transition: all var(--transition);
+  user-select: none;
+}
+
+.role-card:hover { border-color: var(--border2); background: var(--bg); }
+.role-card.selected { border-color: var(--text); background: var(--bg2); }
+.role-card input { position: absolute; opacity: 0; width: 0; height: 0; }
+
+.role-icon {
+  width: 32px; height: 32px;
+  background: var(--bg2);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 10px;
+}
+
+.role-card.selected .role-icon { background: var(--text); }
+.role-icon svg { width: 16px; height: 16px; stroke: var(--muted); }
+.role-card.selected .role-icon svg { stroke: var(--accent-inv); }
+
+.role-name { font-size: .88rem; font-weight: 600; margin-bottom: 2px; }
+.role-desc { font-size: .75rem; color: var(--muted); }
+
+/* Password strength */
+.pw-bar { height: 3px; background: var(--border); border-radius: 2px; margin-top: 8px; overflow: hidden; }
+.pw-fill { height: 100%; border-radius: 2px; width: 0; transition: width .3s, background .3s; }
+.pw-hint { font-size: .73rem; color: var(--muted); margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<div class="auth-wrap">
+  <div class="auth-brand">
+    <div class="logo-mark">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
+      </svg>
+    </div>
+    <span>AI Proctor</span>
+  </div>
+
+  <h1 style="font-size:1.6rem;margin-bottom:6px">Create your account</h1>
+  <p style="font-size:.88rem;color:var(--muted);margin-bottom:28px">Join the AI-powered exam proctoring platform.</p>
+
+  <div class="auth-card">
+    <div id="regAlert" class="alert"></div>
+
+    <form id="regForm" novalidate>
+      <div class="form-grid" style="margin-bottom:18px">
+        <div class="form-group" style="margin-bottom:0">
+          <label>First name</label>
+          <input type="text" id="firstName" placeholder="Jane" required/>
+          <span class="field-err" id="errFirst">Required</span>
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label>Last name</label>
+          <input type="text" id="lastName" placeholder="Doe" required/>
+          <span class="field-err" id="errLast">Required</span>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Email address</label>
+        <input type="email" id="regEmail" placeholder="you@example.com" required/>
+        <span class="field-err" id="errEmail">Enter a valid email</span>
+      </div>
+
+      <div class="form-group">
+        <label>Password</label>
+        <div class="input-wrap">
+          <input type="password" id="regPw" placeholder="Min. 8 characters" required/>
+          <button type="button" class="input-icon" id="pwToggle">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+        <div class="pw-bar"><div class="pw-fill" id="pwFill"></div></div>
+        <span class="pw-hint" id="pwHint">Enter a password</span>
+        <span class="field-err" id="errPw">Minimum 8 characters required</span>
+      </div>
+
+      <div class="form-group">
+        <label>Confirm password</label>
+        <input type="password" id="regPwC" placeholder="Repeat your password" required/>
+        <span class="field-err" id="errPwC">Passwords do not match</span>
+      </div>
+
+      <div class="form-group" style="margin-bottom:24px">
+        <label>Account type</label>
+        <div class="role-grid">
+          <label class="role-card selected" id="cardStudent">
+            <input type="radio" name="role" value="STUDENT" checked/>
+            <div class="role-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+            </div>
+            <div class="role-name">Student</div>
+            <div class="role-desc">Take proctored exams</div>
+          </label>
+          <label class="role-card" id="cardAdmin">
+            <input type="radio" name="role" value="ADMIN"/>
+            <div class="role-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+            <div class="role-name">Admin</div>
+            <div class="role-desc">Manage exams & monitor</div>
+          </label>
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-full" id="regBtn">
+        <span class="spinner" id="regSpin"></span>
+        <span class="btn-label">Create Account</span>
+      </button>
+    </form>
+  </div>
+
+  <div class="auth-footer">
+    Already have an account? <a href="login.html">Sign in</a>
+  </div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+  document.querySelectorAll('.role-card').forEach(card => {
+    card.addEventListener('click', () => {
+      document.querySelectorAll('.role-card').forEach(c => c.classList.remove('selected'));
+      card.classList.add('selected');
+    });
+  });
+
+  document.getElementById('pwToggle').addEventListener('click', () => {
+    const i = document.getElementById('regPw');
+    i.type = i.type === 'password' ? 'text' : 'password';
+  });
+
+  document.getElementById('regPw').addEventListener('input', function() {
+    const pw = this.value;
+    let s = 0;
+    if (pw.length >= 8) s++;
+    if (/[A-Z]/.test(pw)) s++;
+    if (/[0-9]/.test(pw)) s++;
+    if (/[^A-Za-z0-9]/.test(pw)) s++;
+    const map = [
+      { w: '0%',   bg: 'transparent',    t: 'Enter a password',  c: 'var(--muted)' },
+      { w: '25%',  bg: 'var(--danger)',   t: 'Weak',              c: 'var(--danger)' },
+      { w: '50%',  bg: 'var(--warn)',     t: 'Fair',              c: 'var(--warn)' },
+      { w: '75%',  bg: '#2563eb',         t: 'Good',              c: '#2563eb' },
+      { w: '100%', bg: 'var(--success)',  t: 'Strong',            c: 'var(--success)' },
+    ];
+    const m = map[s];
+    const fill = document.getElementById('pwFill');
+    fill.style.width = m.w; fill.style.background = m.bg;
+    const hint = document.getElementById('pwHint');
+    hint.textContent = m.t; hint.style.color = m.c;
+  });
+
+  function ferr(inputId, errId, invalid) {
+    document.getElementById(inputId)?.classList.toggle('invalid', invalid);
+    document.getElementById(errId)?.classList.toggle('show', invalid);
+    return invalid;
+  }
+
+  document.getElementById('regForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    showAlert('regAlert', '');
+    const fn  = document.getElementById('firstName').value.trim();
+    const ln  = document.getElementById('lastName').value.trim();
+    const em  = document.getElementById('regEmail').value.trim();
+    const pw  = document.getElementById('regPw').value;
+    const pwc = document.getElementById('regPwC').value;
+    const rol = document.querySelector('input[name=role]:checked').value;
+    let bad = false;
+    if (ferr('firstName','errFirst',!fn))   bad=true;
+    if (ferr('lastName', 'errLast', !ln))   bad=true;
+    if (ferr('regEmail', 'errEmail', !em || !/\S+@\S+\.\S+/.test(em))) bad=true;
+    if (ferr('regPw',    'errPw',    pw.length < 8)) bad=true;
+    if (ferr('regPwC',   'errPwC',   pw !== pwc))    bad=true;
+    if (bad) return;
+    setBtnLoading('regBtn', true, 'Creating account...');
+    try {
+      await API.post('/api/auth/register', { name: `${fn} ${ln}`, email: em, password: pw, role: rol });
+      showAlert('regAlert', 'Account created successfully. Redirecting...', 'success');
+      setTimeout(() => { location.href = 'login.html'; }, 1300);
+    } catch (err) {
+      showAlert('regAlert', err.message || 'Registration failed.', 'error');
+      setBtnLoading('regBtn', false, 'Create Account');
+    }
+  });
+</script>
+</body>
+</html>

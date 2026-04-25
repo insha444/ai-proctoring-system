@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI Proctor — Student Dashboard</title>
+  <link rel="stylesheet" href="css/shared.css"/>
+  <style>
+    body { display:flex; flex-direction:column; }
+
+    /* ── Exam cards ──────────────────────────────────────── */
+    .exam-grid { display:flex; flex-direction:column; gap:12px; }
+    .exam-card {
+      background:var(--surface); border:1px solid var(--border);
+      border-radius:var(--radius); padding:20px 22px;
+      display:flex; align-items:flex-start; gap:18px;
+      transition:border-color .2s, transform .15s;
+    }
+    .exam-card:hover { border-color:var(--accent); transform:translateY(-1px); }
+    .exam-card.open  { border-left:3px solid var(--success); }
+    .exam-card.upcoming { border-left:3px solid var(--warn); }
+    .exam-icon {
+      width:44px; height:44px; border-radius:10px;
+      background:rgba(47,129,247,.12); border:1px solid rgba(47,129,247,.25);
+      display:flex; align-items:center; justify-content:center;
+      font-size:20px; flex-shrink:0;
+    }
+    .exam-body { flex:1; min-width:0; }
+    .exam-title { font-size:15px; font-weight:600; margin-bottom:4px; }
+    .exam-desc  { font-size:13px; color:var(--muted); margin-bottom:10px; line-height:1.5;
+                  overflow:hidden; display:-webkit-box; -webkit-line-clamp:2;
+                  -webkit-box-orient:vertical; }
+    .exam-meta  { display:flex; flex-wrap:wrap; gap:12px; font-size:12px; color:var(--muted); }
+    .meta-item  { display:flex; align-items:center; gap:4px; }
+    .exam-actions { display:flex; flex-direction:column; align-items:flex-end; gap:8px; flex-shrink:0; }
+
+    /* ── Tabs ────────────────────────────────────────────── */
+    .tabs { display:flex; gap:4px; border-bottom:1px solid var(--border); margin-bottom:20px; }
+    .tab {
+      padding:10px 18px; font-size:13px; font-weight:500; color:var(--muted);
+      cursor:pointer; border:none; background:none; border-bottom:2px solid transparent;
+      transition:.15s; font-family:var(--font);
+    }
+    .tab:hover { color:var(--text); }
+    .tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+    .tab-content { display:none; }
+    .tab-content.active { display:block; }
+
+    /* ── Session history table ───────────────────────────── */
+    .score-bar-wrap { background:var(--surface2); border-radius:4px; height:6px; width:80px; overflow:hidden; }
+    .score-bar      { height:100%; border-radius:4px; background:var(--accent); transition:width .5s; }
+
+    /* ── Proctor info box ────────────────────────────────── */
+    .proctor-info {
+      background:rgba(47,129,247,.07); border:1px solid rgba(47,129,247,.2);
+      border-radius:8px; padding:12px 16px; font-size:12px; color:var(--muted);
+      display:flex; align-items:flex-start; gap:10px; margin-bottom:20px;
+    }
+    .proctor-info .icon { font-size:18px; flex-shrink:0; margin-top:1px; }
+
+    @media(max-width:640px) {
+      .exam-card { flex-direction:column; }
+      .exam-actions { flex-direction:row; width:100%; justify-content:space-between; align-items:center; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ──────────────────────────────────────────────── -->
+<header class="app-header">
+  <a class="logo" href="dashboard.html">
+    <div class="logo-icon">🎓</div>
+    <span>AI Proctor</span>
+  </a>
+  <div class="header-right">
+    <div class="user-chip">
+      <span id="headerEmail"></span>
+      <span class="badge badge-blue">STUDENT</span>
+    </div>
+    <button class="btn-logout" onclick="Auth.logout()">Sign Out</button>
+  </div>
+</header>
+
+<!-- ── Main ─────────────────────────────────────────────────── -->
+<main style="max-width:1020px; margin:0 auto; padding:32px 24px; flex:1;">
+
+  <div class="page-header">
+    <h1>Welcome back, <span id="headerName">Student</span> </h1>
+    <p>Manage your exams and track your results from here.</p>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats">
+    <div class="stat-card">
+      <div class="stat-val" id="statAvailable">—</div>
+      <div class="stat-lbl">Available Exams</div>
+    </div>
+    <div class="stat-card green">
+      <div class="stat-val" id="statOpen">—</div>
+      <div class="stat-lbl">Open Now</div>
+    </div>
+    <div class="stat-card yellow">
+      <div class="stat-val" id="statUpcoming">—</div>
+      <div class="stat-lbl">Upcoming</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val" id="statCompleted">—</div>
+      <div class="stat-lbl">Completed</div>
+    </div>
+  </div>
+
+  <!-- Proctor notice -->
+  <div class="proctor-info">
+    <span class="icon">📷</span>
+    <div>
+      <strong style="color:var(--text);">Proctoring is active</strong> — your webcam and screen are monitored during exams.
+      Make sure you are in a well-lit area, your face is visible, and you stay in fullscreen mode.
+      Tab switches and fullscreen exits are recorded as violations.
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('exams',this)">📋 Available Exams</button>
+    <button class="tab" onclick="switchTab('history',this)">📊 My Results</button>
+  </div>
+
+  <!-- Tab: Exams -->
+  <div id="tab-exams" class="tab-content active">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <span class="text-muted f-sm" id="examCount">Loading…</span>
+      <button class="btn btn-ghost btn-sm" onclick="loadExams()">↻ Refresh</button>
+    </div>
+    <div class="exam-grid" id="examGrid">
+      <div class="exam-card skeleton"><div class="skel-line w80"></div><div class="skel-line w60"></div><div class="skel-line w40"></div></div>
+      <div class="exam-card skeleton"><div class="skel-line w80"></div><div class="skel-line w60"></div><div class="skel-line w40"></div></div>
+    </div>
+  </div>
+
+  <!-- Tab: History -->
+  <div id="tab-history" class="tab-content">
+    <div id="historyContent">
+      <div class="empty-state"><div class="icon">📊</div><h3>Loading results…</h3></div>
+    </div>
+  </div>
+
+</main>
+
+<!-- Confirm start modal -->
+<div class="modal-overlay" id="startModal">
+  <div class="modal">
+    <h3>🚀 Start Exam</h3>
+    <p id="startModalMsg">Are you ready to start? Your webcam will be activated and the timer will begin.</p>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" id="confirmStartBtn">Start Now</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="js/api.js"></script>
+<script>
+  Auth.requireRole('STUDENT');
+  populateHeader();
+  document.getElementById('headerName').textContent = Auth.getUser().name;
+
+  let allExams = [], pendingExamId = null;
+
+  // ── Tab switching ──────────────────────────────────────────────────────────
+  function switchTab(name, el) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('tab-' + name).classList.add('active');
+    if (name === 'history') loadHistory();
+  }
+
+  // ── Load available exams ──────────────────────────────────────────────────
+  async function loadExams() {
+    const grid = document.getElementById('examGrid');
+    grid.innerHTML = '<div class="exam-card skeleton"><div class="skel-line w80"></div><div class="skel-line w60"></div></div>'.repeat(2);
+    try {
+      allExams = await API.get('/api/exams');
+      renderExams(allExams);
+      updateStats(allExams);
+    } catch (err) {
+      grid.innerHTML = `<div class="empty-state"><div class="icon">⚠️</div><h3>Failed to load exams</h3><p>${err.message}</p></div>`;
+    }
+  }
+
+  function renderExams(exams) {
+    const grid = document.getElementById('examGrid');
+    if (!exams.length) {
+      grid.innerHTML = '<div class="empty-state"><div class="icon">📋</div><h3>No exams available</h3><p>Check back later or contact your administrator.</p></div>';
+      document.getElementById('examCount').textContent = '0 exams';
+      return;
+    }
+    document.getElementById('examCount').textContent = `${exams.length} exam${exams.length !== 1 ? 's' : ''} found`;
+    grid.innerHTML = exams.map(exam => {
+      const status = getExamStatus(exam);
+      const canStart = status === 'open';
+      return `
+      <div class="exam-card ${status}">
+        <div class="exam-icon">📝</div>
+        <div class="exam-body">
+          <div class="exam-title">${escHtml(exam.title)}</div>
+          <div class="exam-desc">${escHtml(exam.description || 'No description provided.')}</div>
+          <div class="exam-meta">
+            <span class="meta-item">⏱ ${formatDuration(exam.durationMinutes)}</span>
+            <span class="meta-item">📅 ${formatDate(exam.startTime)}</span>
+            <span class="meta-item">🔚 ${formatDate(exam.endTime)}</span>
+            ${exam.webcamRequired ? '<span class="meta-item">📷 Webcam required</span>' : ''}
+          </div>
+        </div>
+        <div class="exam-actions">
+          ${examStatusBadge(status)}
+          <button class="btn btn-primary btn-sm" onclick="promptStart(${exam.id}, '${escHtml(exam.title)}')"
+            ${canStart ? '' : 'disabled'}>${canStart ? 'Start Exam' : status === 'upcoming' ? 'Not Started' : 'Closed'}</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  function updateStats(exams) {
+    const open     = exams.filter(e => getExamStatus(e) === 'open').length;
+    const upcoming = exams.filter(e => getExamStatus(e) === 'upcoming').length;
+    document.getElementById('statAvailable').textContent = exams.length;
+    document.getElementById('statOpen').textContent      = open;
+    document.getElementById('statUpcoming').textContent  = upcoming;
+  }
+
+  // ── Confirm start modal ───────────────────────────────────────────────────
+  function promptStart(examId, title) {
+    pendingExamId = examId;
+    document.getElementById('startModalMsg').textContent =
+      `Ready to start "${title}"? Your webcam will be activated and the timer will begin immediately.`;
+    document.getElementById('startModal').classList.add('show');
+  }
+  function closeModal() {
+    document.getElementById('startModal').classList.remove('show');
+    pendingExamId = null;
+  }
+  document.getElementById('confirmStartBtn').addEventListener('click', async () => {
+    if (!pendingExamId) return;
+    const btn = document.getElementById('confirmStartBtn');
+    btn.disabled = true;
+    btn.textContent = 'Starting…';
+    try {
+      const session = await API.post('/api/sessions/start', { examId: pendingExamId });
+      localStorage.setItem('currentSessionId', session.id);
+      localStorage.setItem('currentExamId',    session.examId);
+      window.location.href = 'exam.html';
+    } catch (err) {
+      closeModal();
+      showToast(err.message, 'error');
+      btn.disabled = false;
+      btn.textContent = 'Start Now';
+    }
+  });
+
+  // ── Session history ───────────────────────────────────────────────────────
+  async function loadHistory() {
+    const container = document.getElementById('historyContent');
+    container.innerHTML = '<div class="empty-state"><div class="icon">⏳</div><h3>Loading…</h3></div>';
+    try {
+      const sessions = await API.get('/api/sessions/my');
+      document.getElementById('statCompleted').textContent =
+        sessions.filter(s => s.status === 'SUBMITTED').length;
+      if (!sessions.length) {
+        container.innerHTML = '<div class="empty-state"><div class="icon">📊</div><h3>No results yet</h3><p>Complete an exam to see your results here.</p></div>';
+        return;
+      }
+      container.innerHTML = `
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Exam</th><th>Status</th><th>Score</th><th>Progress</th>
+              <th>Violations</th><th>Started</th>
+            </tr></thead>
+            <tbody>
+              ${sessions.map(s => `
+                <tr>
+                  <td><strong>${escHtml(s.examTitle || 'Exam #' + s.examId)}</strong></td>
+                  <td>${sessionStatusBadge(s.status)}</td>
+                  <td>${s.score != null ? `${s.score} / ${s.totalMarks}` : '—'}</td>
+                  <td>
+                    ${s.totalMarks ? `
+                      <div class="score-bar-wrap">
+                        <div class="score-bar" style="width:${Math.round((s.score/s.totalMarks)*100)}%"></div>
+                      </div>
+                    ` : '—'}
+                  </td>
+                  <td>${s.violationCount > 0 ? `<span class="badge badge-red">${s.violationCount}</span>` : '<span class="text-muted">0</span>'}</td>
+                  <td class="text-muted">${formatDateShort(s.startedAt)}</td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>`;
+    } catch (err) {
+      container.innerHTML = `<div class="empty-state"><div class="icon">⚠️</div><h3>Failed to load history</h3><p>${err.message}</p></div>`;
+    }
+  }
+
+  function escHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+  loadExams();
+</script>
+</body>
+</html>

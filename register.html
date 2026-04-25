@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI Proctor — Register</title>
+  <link rel="stylesheet" href="css/shared.css"/>
+  <style>
+    body { display:flex; align-items:center; justify-content:center; padding:24px; }
+
+    .register-card {
+      background:var(--surface); border:1px solid var(--border);
+      border-radius:var(--radius); width:100%; max-width:460px; padding:40px 36px;
+    }
+    .brand { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+    .brand-icon {
+      width:38px; height:38px; background:var(--accent); border-radius:9px;
+      display:flex; align-items:center; justify-content:center; font-size:20px;
+    }
+    .brand-name { font-size:18px; font-weight:700; }
+    h2 { font-size:22px; font-weight:600; margin-top:22px; margin-bottom:4px; }
+    .subtitle { color:var(--muted); font-size:13px; margin-bottom:24px; }
+
+    /* Password strength meter */
+    .pw-meter { margin-top:6px; }
+    .pw-bar {
+      height:4px; border-radius:2px; background:var(--border);
+      overflow:hidden; margin-bottom:4px;
+    }
+    .pw-fill {
+      height:100%; border-radius:2px; width:0%;
+      transition: width .3s, background .3s;
+    }
+    .pw-label { font-size:11px; color:var(--muted); }
+
+    .footer-link { text-align:center; margin-top:22px; font-size:13px; color:var(--muted); }
+    .footer-link a { color:var(--accent); text-decoration:none; }
+    .footer-link a:hover { text-decoration:underline; }
+
+    .role-select {
+      display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:4px;
+    }
+    .role-opt {
+      border:2px solid var(--border); border-radius:8px; padding:12px;
+      cursor:pointer; text-align:center; transition:.15s; position:relative;
+    }
+    .role-opt:hover { border-color:var(--accent); }
+    .role-opt.selected { border-color:var(--accent); background:rgba(47,129,247,.08); }
+    .role-opt input { position:absolute; opacity:0; width:0; height:0; }
+    .role-opt .icon { font-size:22px; margin-bottom:4px; }
+    .role-opt .name { font-size:13px; font-weight:600; }
+    .role-opt .desc { font-size:11px; color:var(--muted); margin-top:2px; }
+    .field-error { font-size:11px; color:var(--danger); margin-top:3px; display:none; }
+    .field-error.show { display:block; }
+    input.invalid { border-color:var(--danger) !important; }
+  </style>
+</head>
+<body>
+
+<div class="register-card">
+  <div class="brand">
+    <div class="brand-icon">🎓</div>
+    <span class="brand-name">AI Proctor</span>
+  </div>
+
+  <h2>Create your account</h2>
+  <p class="subtitle">Join the AI-powered exam proctoring platform.</p>
+
+  <div id="alertBox" class="alert"></div>
+
+  <form id="registerForm" novalidate>
+
+    <div class="form-grid" style="margin-bottom:14px;">
+      <div class="form-group" style="margin-bottom:0;">
+        <label for="firstName">First name</label>
+        <input type="text" id="firstName" placeholder="John" required/>
+        <span class="field-error" id="firstNameErr">Required</span>
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label for="lastName">Last name</label>
+        <input type="text" id="lastName" placeholder="Doe" required/>
+        <span class="field-error" id="lastNameErr">Required</span>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="email">Email address</label>
+      <input type="email" id="email" placeholder="you@example.com" required/>
+      <span class="field-error" id="emailErr">Enter a valid email</span>
+    </div>
+
+    <div class="form-group">
+      <label for="password">Password</label>
+      <input type="password" id="password" placeholder="Min. 8 characters" required/>
+      <div class="pw-meter">
+        <div class="pw-bar"><div class="pw-fill" id="pwFill"></div></div>
+        <span class="pw-label" id="pwLabel">Enter a password</span>
+      </div>
+      <span class="field-error" id="passwordErr">Password must be at least 8 characters</span>
+    </div>
+
+    <div class="form-group">
+      <label for="confirmPw">Confirm password</label>
+      <input type="password" id="confirmPw" placeholder="Repeat your password" required/>
+      <span class="field-error" id="confirmErr">Passwords do not match</span>
+    </div>
+
+    <div class="form-group" style="margin-bottom:20px;">
+      <label>Account type</label>
+      <div class="role-select">
+        <label class="role-opt selected" id="roleStudent">
+          <input type="radio" name="role" value="STUDENT" checked/>
+          <div class="icon">🎓</div>
+          <div class="name">Student</div>
+          <div class="desc">Take exams</div>
+        </label>
+        <label class="role-opt" id="roleAdmin">
+          <input type="radio" name="role" value="ADMIN"/>
+          <div class="icon">🛡️</div>
+          <div class="name">Admin</div>
+          <div class="desc">Manage exams</div>
+        </label>
+      </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary btn-full" id="registerBtn">
+      <div class="spinner" id="spinner"></div>
+      <span id="btnText">Create Account</span>
+    </button>
+  </form>
+
+  <div class="footer-link">
+    Already have an account? <a href="login.html">Sign in</a>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="js/api.js"></script>
+<script>
+  // ── Role selector ──────────────────────────────────────────────────────────
+  document.querySelectorAll('.role-opt').forEach(opt => {
+    opt.addEventListener('click', () => {
+      document.querySelectorAll('.role-opt').forEach(o => o.classList.remove('selected'));
+      opt.classList.add('selected');
+    });
+  });
+
+  // ── Password strength meter ────────────────────────────────────────────────
+  document.getElementById('password').addEventListener('input', function () {
+    const pw    = this.value;
+    const fill  = document.getElementById('pwFill');
+    const label = document.getElementById('pwLabel');
+    const score = calcStrength(pw);
+    const levels = [
+      { pct:'0%',   bg:'transparent', txt:'' },
+      { pct:'25%',  bg:'var(--danger)',  txt:'Weak' },
+      { pct:'50%',  bg:'var(--warn)',    txt:'Fair' },
+      { pct:'75%',  bg:'var(--accent)',  txt:'Good' },
+      { pct:'100%', bg:'var(--success)', txt:'Strong' },
+    ];
+    const l = levels[score];
+    fill.style.width      = l.pct;
+    fill.style.background = l.bg;
+    label.textContent     = l.txt;
+    label.style.color     = l.bg;
+  });
+
+  function calcStrength(pw) {
+    if (!pw) return 0;
+    let s = 0;
+    if (pw.length >= 8)             s++;
+    if (/[A-Z]/.test(pw))           s++;
+    if (/[0-9]/.test(pw))           s++;
+    if (/[^A-Za-z0-9]/.test(pw))    s++;
+    return s;
+  }
+
+  // ── Field validation helpers ───────────────────────────────────────────────
+  function fieldErr(inputId, errId, show) {
+    document.getElementById(inputId).classList.toggle('invalid', show);
+    document.getElementById(errId).classList.toggle('show', show);
+    return show;
+  }
+
+  // ── Form submit ───────────────────────────────────────────────────────────
+  document.getElementById('registerForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    showAlert('alertBox', '');
+
+    const firstName = document.getElementById('firstName').value.trim();
+    const lastName  = document.getElementById('lastName').value.trim();
+    const email     = document.getElementById('email').value.trim();
+    const password  = document.getElementById('password').value;
+    const confirmPw = document.getElementById('confirmPw').value;
+    const role      = document.querySelector('input[name="role"]:checked').value;
+
+    let hasErr = false;
+    if (fieldErr('firstName', 'firstNameErr', !firstName))  hasErr = true;
+    if (fieldErr('lastName',  'lastNameErr',  !lastName))   hasErr = true;
+    if (fieldErr('email',     'emailErr',     !email || !/\S+@\S+\.\S+/.test(email))) hasErr = true;
+    if (fieldErr('password',  'passwordErr',  password.length < 8)) hasErr = true;
+    if (fieldErr('confirmPw', 'confirmErr',   password !== confirmPw)) hasErr = true;
+    if (hasErr) return;
+
+    const btn     = document.getElementById('registerBtn');
+    const spinner = document.getElementById('spinner');
+    const btnText = document.getElementById('btnText');
+    btn.disabled       = true;
+    spinner.classList.add('show');
+    btnText.textContent = 'Creating account…';
+
+    try {
+      await API.post('/api/auth/register', {
+        name: `${firstName} ${lastName}`,
+        email,
+        password,
+        role,
+      });
+      showAlert('alertBox', 'Account created! Redirecting to login…', 'success');
+      setTimeout(() => { window.location.href = 'login.html'; }, 1200);
+    } catch (err) {
+      showAlert('alertBox', err.message || 'Registration failed. Please try again.', 'error');
+      btn.disabled       = false;
+      spinner.classList.remove('show');
+      btnText.textContent = 'Create Account';
+    }
+  });
+</script>
+</body>
+</html>

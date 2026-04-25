@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>AI Proctor — Sign In</title>
+<link rel="stylesheet" href="css/shared.css"/>
+<style>
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.auth-wrap {
+  width: 100%;
+  max-width: 400px;
+  animation: slide-up .3s ease;
+}
+
+.auth-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 40px;
+}
+
+.auth-brand .logo-mark {
+  width: 36px; height: 36px;
+  background: var(--text);
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+}
+
+.auth-brand .logo-mark svg {
+  width: 20px; height: 20px; fill: var(--accent-inv);
+}
+
+.auth-brand span {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.auth-heading {
+  margin-bottom: 6px;
+}
+
+.auth-sub {
+  font-size: .88rem;
+  color: var(--muted);
+  margin-bottom: 32px;
+}
+
+.auth-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 32px;
+  box-shadow: var(--shadow);
+}
+
+.auth-footer {
+  text-align: center;
+  margin-top: 20px;
+  font-size: .83rem;
+  color: var(--muted);
+}
+
+.auth-footer a {
+  color: var(--text);
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Step panels */
+.step { display: none; animation: fade-in .2s ease; }
+.step.active { display: block; }
+
+.step-label {
+  font-size: .75rem;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.step-label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* OTP */
+.otp-info {
+  margin-bottom: 24px;
+}
+
+.otp-info p {
+  font-size: .88rem;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.otp-info strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.otp-countdown {
+  font-size: .78rem;
+  color: var(--muted);
+  text-align: center;
+  margin-top: 8px;
+}
+
+.otp-countdown span { color: var(--warn); font-weight: 600; }
+
+.resend-row {
+  text-align: center;
+  margin-top: 14px;
+  font-size: .82rem;
+  color: var(--muted);
+}
+
+.resend-row button {
+  background: none; border: none;
+  color: var(--text);
+  font-weight: 500;
+  cursor: pointer;
+  font-family: var(--font);
+  font-size: .82rem;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.resend-row button:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+  text-decoration: none;
+}
+
+.back-btn {
+  background: none; border: none;
+  color: var(--muted);
+  font-size: .82rem;
+  cursor: pointer;
+  font-family: var(--font);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 20px;
+  transition: color var(--transition);
+  padding: 0;
+}
+
+.back-btn:hover { color: var(--text); }
+
+.dev-hint {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-size: .78rem;
+  color: var(--muted);
+  text-align: center;
+  margin-top: 16px;
+}
+
+.dev-hint strong { color: var(--text); }
+
+.demo-creds {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  margin-bottom: 24px;
+  font-size: .8rem;
+  color: var(--muted);
+  line-height: 1.8;
+}
+
+.demo-creds strong { color: var(--text2); font-weight: 500; }
+</style>
+</head>
+<body>
+
+<div class="auth-wrap">
+  <div class="auth-brand">
+    <div class="logo-mark">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
+      </svg>
+    </div>
+    <span>AI Proctor</span>
+  </div>
+
+  <div id="step1" class="step active">
+    <h1 class="auth-heading" style="font-size:1.6rem">Sign in</h1>
+    <p class="auth-sub">Access your exam portal with your credentials.</p>
+
+    <div class="auth-card">
+      <div class="demo-creds">
+        <strong>Student:</strong> student@proctoring.com / Student@1234<br>
+        <strong>Admin:</strong> admin@proctoring.com / Admin@1234
+      </div>
+
+      <div id="s1Alert" class="alert"></div>
+
+      <form id="loginForm" novalidate>
+        <div class="form-group">
+          <label>Email address</label>
+          <input type="email" id="email" placeholder="you@example.com" autocomplete="email" required/>
+        </div>
+
+        <div class="form-group">
+          <label>Password</label>
+          <div class="input-wrap">
+            <input type="password" id="password" placeholder="Your password" autocomplete="current-password" required/>
+            <button type="button" class="input-icon" id="pwToggle" tabindex="-1">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-full" id="loginBtn" style="margin-top:8px">
+          <span class="spinner" id="s1Spin"></span>
+          <span class="btn-label">Continue</span>
+        </button>
+      </form>
+    </div>
+
+    <div class="auth-footer">
+      Don't have an account? <a href="register.html">Create one</a>
+    </div>
+  </div>
+
+  <!-- OTP Step -->
+  <div id="step2" class="step">
+    <button class="back-btn" onclick="goBack()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+      Back
+    </button>
+
+    <h1 class="auth-heading" style="font-size:1.6rem">Verify your identity</h1>
+    <p class="auth-sub">Enter the 6-digit code sent to your email.</p>
+
+    <div class="auth-card">
+      <div class="otp-info">
+        <p>Code sent to</p>
+        <strong id="otpEmailDisplay"></strong>
+      </div>
+
+      <div id="s2Alert" class="alert"></div>
+
+      <div class="step-label">Enter code</div>
+
+      <div class="otp-group" id="otpGroup">
+        <input type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]"/>
+        <input type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]"/>
+        <input type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]"/>
+        <input type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]"/>
+        <input type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]"/>
+        <input type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]"/>
+      </div>
+      <p class="otp-countdown">Expires in <span id="otpTimer">300s</span></p>
+
+      <button class="btn btn-primary btn-full" id="verifyBtn" style="margin-top:20px" onclick="doVerify()">
+        <span class="spinner" id="s2Spin"></span>
+        <span class="btn-label">Verify & Sign In</span>
+      </button>
+
+      <div class="resend-row">
+        Didn't receive it?
+        <button id="resendBtn" onclick="doResend()" disabled>Resend (<span id="resendTimer">30s</span>)</button>
+      </div>
+
+      <div id="devOtpHint" class="dev-hint" style="display:none"></div>
+    </div>
+  </div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+  if (Auth.getToken()) {
+    location.href = Auth.getUser().role === 'ADMIN' ? 'admin.html' : 'dashboard.html';
+  }
+
+  let _pendingEmail = '', _pendingToken = null, _otpHandle = null, _resendHandle = null;
+
+  // Password toggle
+  document.getElementById('pwToggle').addEventListener('click', () => {
+    const i = document.getElementById('password');
+    i.type = i.type === 'password' ? 'text' : 'password';
+  });
+
+  // Login form
+  document.getElementById('loginForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    showAlert('s1Alert', '');
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    if (!email || !password) { showAlert('s1Alert', 'Both fields are required.'); return; }
+
+    setBtnLoading('loginBtn', true, 'Checking...');
+    try {
+      const data = await API.post('/api/auth/login', { email, password });
+      _pendingToken = data;
+      _pendingEmail = email;
+      const otpRes = await OTP.request(email);
+      document.getElementById('otpEmailDisplay').textContent = email;
+      const hint = document.getElementById('devOtpHint');
+      hint.style.display = 'block';
+      hint.innerHTML = `<strong>Demo OTP:</strong> ${otpRes.code}`;
+      goToStep2();
+    } catch (err) {
+      showAlert('s1Alert', err.message || 'Login failed. Check your credentials.', 'error');
+    } finally {
+      setBtnLoading('loginBtn', false, 'Continue');
+    }
+  });
+
+  function goToStep2() {
+    document.getElementById('step1').classList.remove('active');
+    document.getElementById('step2').classList.add('active');
+    startOtpCountdown('otpTimer', 300, () => {
+      showAlert('s2Alert', 'OTP expired. Please go back and try again.', 'warning');
+      document.getElementById('verifyBtn').disabled = true;
+    });
+    wireOtpInputs('otpGroup', () => document.getElementById('verifyBtn').click());
+    setTimeout(() => document.querySelector('#otpGroup input').focus(), 100);
+    let resend = 30;
+    document.getElementById('resendBtn').disabled = true;
+    _resendHandle = setInterval(() => {
+      resend--;
+      const el = document.getElementById('resendTimer');
+      if (el) el.textContent = resend + 's';
+      if (resend <= 0) {
+        clearInterval(_resendHandle);
+        document.getElementById('resendBtn').disabled = false;
+        document.getElementById('resendBtn').textContent = 'Resend code';
+      }
+    }, 1000);
+  }
+
+  function goBack() {
+    document.getElementById('step2').classList.remove('active');
+    document.getElementById('step1').classList.add('active');
+    document.getElementById('s2Alert').className = 'alert';
+    clearInterval(_otpHandle); clearInterval(_resendHandle);
+    _pendingToken = null;
+  }
+
+  async function doVerify() {
+    showAlert('s2Alert', '');
+    const code = getOtpValue('otpGroup');
+    if (code.length < 6) { showAlert('s2Alert', 'Please enter all 6 digits.'); return; }
+    setBtnLoading('verifyBtn', true, 'Verifying...');
+    const result = OTP.verify(_pendingEmail, code);
+    if (!result.ok) {
+      shakeOtpInputs('otpGroup');
+      showAlert('s2Alert', result.message, 'error');
+      setBtnLoading('verifyBtn', false, 'Verify & Sign In');
+      return;
+    }
+    Auth.save(_pendingToken);
+    showAlert('s2Alert', 'Verified! Signing you in...', 'success');
+    setTimeout(() => {
+      location.href = _pendingToken.role === 'ADMIN' ? 'admin.html' : 'dashboard.html';
+    }, 800);
+  }
+
+  async function doResend() {
+    showAlert('s2Alert', '');
+    const res = await OTP.request(_pendingEmail);
+    document.getElementById('devOtpHint').innerHTML = `<strong>Demo OTP:</strong> ${res.code}`;
+    showAlert('s2Alert', 'New code sent to ' + _pendingEmail, 'success');
+    document.getElementById('resendBtn').disabled = true;
+    document.getElementById('resendBtn').innerHTML = 'Resend (<span id="resendTimer">30s</span>)';
+    let resend = 30;
+    _resendHandle = setInterval(() => {
+      resend--;
+      const el = document.getElementById('resendTimer');
+      if (el) el.textContent = resend + 's';
+      if (resend <= 0) { clearInterval(_resendHandle); document.getElementById('resendBtn').disabled = false; document.getElementById('resendBtn').textContent = 'Resend code'; }
+    }, 1000);
+  }
+</script>
+</body>
+</html>

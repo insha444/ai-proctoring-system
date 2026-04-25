@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI Proctor — Admin Panel</title>
+  <link rel="stylesheet" href="css/shared.css"/>
+  <style>
+    body { display:flex; flex-direction:column; }
+
+    /* ── answer selector ──────────────────────────────── */
+    .answer-opts { display:flex; gap:8px; margin-top:4px; }
+    .answer-opt {
+      width:38px; height:38px; border-radius:8px; border:2px solid var(--border);
+      background:var(--bg); color:var(--muted); font-size:14px; font-weight:700;
+      cursor:pointer; transition:.15s; display:flex; align-items:center; justify-content:center;
+      font-family:var(--font);
+    }
+    .answer-opt:hover  { border-color:var(--accent); color:var(--accent); }
+    .answer-opt.sel    { border-color:var(--success); background:rgba(63,185,80,.15); color:var(--success); }
+
+    /* ── exam list items ──────────────────────────────── */
+    .exam-row {
+      display:flex; align-items:center; justify-content:space-between;
+      padding:14px 18px; border:1px solid var(--border); border-radius:8px;
+      margin-bottom:8px; background:var(--surface); transition:.15s;
+    }
+    .exam-row:hover { border-color:var(--accent); }
+    .exam-row-left  { flex:1; min-width:0; }
+    .exam-row-title { font-size:14px; font-weight:600; margin-bottom:3px; }
+    .exam-row-meta  { font-size:12px; color:var(--muted); display:flex; gap:12px; flex-wrap:wrap; }
+    .exam-row-actions { display:flex; gap:8px; flex-shrink:0; margin-left:12px; }
+
+    /* ── session/violation table ──────────────────────── */
+    .percentage-bar { display:flex; align-items:center; gap:8px; }
+    .pct-track { width:60px; height:5px; background:var(--surface2); border-radius:3px; overflow:hidden; }
+    .pct-fill  { height:100%; border-radius:3px; background:var(--accent); }
+
+    /* ── Page tabs ────────────────────────────────────── */
+    .page { display:none; }
+    .page.active { display:block; animation:slide-up .15s ease; }
+
+    /* ── Live indicator ───────────────────────────────── */
+    .live-dot {
+      width:8px; height:8px; border-radius:50%; background:var(--success);
+      animation:blink 1.2s step-end infinite; display:inline-block; margin-right:4px;
+    }
+
+    /* ── Stats row ────────────────────────────────────── */
+    .stats-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:12px; margin-bottom:20px; }
+
+    /* ── Q list ───────────────────────────────────────── */
+    .q-item {
+      border:1px solid var(--border); border-radius:8px; padding:12px 14px;
+      margin-bottom:8px; background:var(--surface);
+    }
+    .q-item .q-text { font-size:13px; font-weight:500; margin-bottom:6px; }
+    .q-item .q-opts { font-size:12px; color:var(--muted); display:flex; flex-wrap:wrap; gap:8px; }
+    .q-item .q-ans  { font-size:12px; }
+    .q-item-head    { display:flex; justify-content:space-between; align-items:flex-start; }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ──────────────────────────────────────────────── -->
+<header class="app-header">
+  <a class="logo" href="admin.html">
+    <div class="logo-icon admin">🛡️</div>
+    <span>AI Proctor</span>
+  </a>
+  <div class="header-right">
+    <div class="user-chip">
+      <span id="headerEmail"></span>
+      <span class="badge badge-red">ADMIN</span>
+    </div>
+    <button class="btn-logout" onclick="Auth.logout()">Sign Out</button>
+  </div>
+</header>
+
+<!-- ── Shell ────────────────────────────────────────────────── -->
+<div class="shell">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="nav-section">Exams</div>
+    <button class="nav-item active" onclick="nav('exams',this)"><span class="nav-icon">📋</span><span>All Exams</span></button>
+    <button class="nav-item" onclick="nav('create',this)"><span class="nav-icon">➕</span><span>Create Exam</span></button>
+    <button class="nav-item" onclick="nav('questions',this)"><span class="nav-icon">❓</span><span>Questions</span></button>
+
+    <div class="nav-section">Monitoring</div>
+    <button class="nav-item" onclick="nav('live',this)"><span class="nav-icon">👁</span><span>Live Sessions</span></button>
+    <button class="nav-item" onclick="nav('results',this)"><span class="nav-icon">📊</span><span>Results</span></button>
+    <button class="nav-item" onclick="nav('violations',this)"><span class="nav-icon">⚠️</span><span>Violations</span></button>
+
+    <div class="nav-section">Users</div>
+    <button class="nav-item" onclick="nav('students',this)"><span class="nav-icon">🎓</span><span>Students</span></button>
+  </nav>
+
+  <!-- Content -->
+  <div class="content">
+
+    <!-- ══ PAGE: All Exams ════════════════════════════════ -->
+    <div id="page-exams" class="page active">
+      <div class="page-title">All Exams</div>
+      <div class="page-sub">Manage all exams in the system.</div>
+      <div id="examList"><div class="empty-state"><div class="icon">⏳</div><h3>Loading…</h3></div></div>
+    </div>
+
+    <!-- ══ PAGE: Create Exam ══════════════════════════════ -->
+    <div id="page-create" class="page">
+      <div class="page-title">Create Exam</div>
+      <div class="page-sub">Fill in the details to create a new exam.</div>
+      <div id="createAlert" class="alert"></div>
+      <div class="card">
+        <div class="form-grid">
+          <div class="form-group full">
+            <label>Exam Title *</label>
+            <input type="text" id="cTitle" placeholder="e.g. Java Programming Fundamentals"/>
+          </div>
+          <div class="form-group full">
+            <label>Description</label>
+            <textarea id="cDesc" placeholder="Brief description of the exam…"></textarea>
+          </div>
+          <div class="form-group">
+            <label>Start Time *</label>
+            <input type="datetime-local" id="cStart"/>
+          </div>
+          <div class="form-group">
+            <label>End Time *</label>
+            <input type="datetime-local" id="cEnd"/>
+          </div>
+          <div class="form-group">
+            <label>Duration (minutes)</label>
+            <input type="number" id="cDuration" value="60" min="5" max="300"/>
+          </div>
+          <div class="form-group">
+            <label>Max Violations (auto-terminate)</label>
+            <input type="number" id="cMaxViol" value="5" min="1" max="20"/>
+          </div>
+          <div class="form-group">
+            <label>Frame Capture Interval (seconds)</label>
+            <input type="number" id="cFrameInt" value="10" min="5" max="60"/>
+          </div>
+          <div class="form-group">
+            <label>Webcam Required</label>
+            <select id="cWebcam">
+              <option value="1">Yes</option>
+              <option value="0">No</option>
+            </select>
+          </div>
+        </div>
+        <div class="btn-row" style="margin-top:16px;">
+          <button class="btn btn-primary" onclick="createExam()">
+            <span class="spinner" id="createSpinner"></span>
+            <span id="createBtnText">Create Exam</span>
+          </button>
+          <button class="btn btn-ghost" onclick="resetCreateForm()">Reset</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ PAGE: Questions ════════════════════════════════ -->
+    <div id="page-questions" class="page">
+      <div class="page-title">Manage Questions</div>
+      <div class="page-sub">Select an exam to view or add questions.</div>
+
+      <div class="card" style="margin-bottom:16px;">
+        <label style="display:block;margin-bottom:6px;">Select Exam</label>
+        <div style="display:flex;gap:10px;">
+          <select id="qExamSelect" style="flex:1;" onchange="loadQuestions()">
+            <option value="">— Choose an exam —</option>
+          </select>
+          <button class="btn btn-ghost btn-sm" onclick="loadQuestions()">Load</button>
+        </div>
+      </div>
+
+      <div id="qListWrap" style="margin-bottom:20px;display:none;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <strong id="qListTitle" class="f-sm text-muted"></strong>
+        </div>
+        <div id="qList"></div>
+      </div>
+
+      <div id="addQForm" class="card" style="display:none;">
+        <div class="card-title">➕ Add Question</div>
+        <div id="addQAlert" class="alert"></div>
+        <div class="form-group">
+          <label>Question Text *</label>
+          <textarea id="qText" placeholder="Enter the question here…"></textarea>
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Option A *</label>
+            <input type="text" id="qOptA" placeholder="Option A"/>
+          </div>
+          <div class="form-group">
+            <label>Option B *</label>
+            <input type="text" id="qOptB" placeholder="Option B"/>
+          </div>
+          <div class="form-group">
+            <label>Option C *</label>
+            <input type="text" id="qOptC" placeholder="Option C"/>
+          </div>
+          <div class="form-group">
+            <label>Option D *</label>
+            <input type="text" id="qOptD" placeholder="Option D"/>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Correct Answer *</label>
+          <div class="answer-opts">
+            <button type="button" class="answer-opt" onclick="selectAnswer('A',this)">A</button>
+            <button type="button" class="answer-opt" onclick="selectAnswer('B',this)">B</button>
+            <button type="button" class="answer-opt" onclick="selectAnswer('C',this)">C</button>
+            <button type="button" class="answer-opt" onclick="selectAnswer('D',this)">D</button>
+          </div>
+          <input type="hidden" id="qCorrect"/>
+        </div>
+        <div class="form-grid cols3">
+          <div class="form-group">
+            <label>Marks</label>
+            <input type="number" id="qMarks" value="1" min="1" max="10"/>
+          </div>
+        </div>
+        <div class="btn-row" style="margin-top:12px;">
+          <button class="btn btn-primary btn-sm" onclick="addQuestion()">Save Question</button>
+          <button class="btn btn-ghost btn-sm" onclick="clearQForm()">Clear</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ PAGE: Live Sessions ════════════════════════════ -->
+    <div id="page-live" class="page">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+        <span class="live-dot"></span>
+        <div class="page-title" style="margin-bottom:0;">Live Sessions</div>
+      </div>
+      <div class="page-sub">Currently in-progress exam sessions. Auto-refreshes every 15s.</div>
+      <div id="liveSessions"><div class="empty-state"><div class="icon">⏳</div><h3>Loading…</h3></div></div>
+    </div>
+
+    <!-- ══ PAGE: Results ══════════════════════════════════ -->
+    <div id="page-results" class="page">
+      <div class="page-title">Exam Results</div>
+      <div class="page-sub">View submitted results and leaderboards per exam.</div>
+      <div class="card" style="margin-bottom:16px;">
+        <label style="display:block;margin-bottom:6px;">Select Exam</label>
+        <div style="display:flex;gap:10px;">
+          <select id="resExamSelect" style="flex:1;" onchange="loadResults()">
+            <option value="">— Choose an exam —</option>
+          </select>
+          <button class="btn btn-ghost btn-sm" onclick="loadResults()">Load</button>
+        </div>
+      </div>
+      <div id="statsCards" style="display:none;">
+        <div class="stats-row" id="examStats"></div>
+      </div>
+      <div id="resultsList"><div class="empty-state"><div class="icon">📊</div><h3>Select an exam to view results</h3></div></div>
+    </div>
+
+    <!-- ══ PAGE: Violations ═══════════════════════════════ -->
+    <div id="page-violations" class="page">
+      <div class="page-title">Violations Log</div>
+      <div class="page-sub">View all violations logged for an exam.</div>
+      <div class="card" style="margin-bottom:16px;">
+        <label style="display:block;margin-bottom:6px;">Select Exam</label>
+        <div style="display:flex;gap:10px;">
+          <select id="violExamSelect" style="flex:1;" onchange="loadViolations()">
+            <option value="">— Choose an exam —</option>
+          </select>
+          <button class="btn btn-ghost btn-sm" onclick="loadViolations()">Load</button>
+        </div>
+      </div>
+      <div id="violationsList"><div class="empty-state"><div class="icon">✅</div><h3>Select an exam to view violations</h3></div></div>
+    </div>
+
+    <!-- ══ PAGE: Students ════════════════════════════════ -->
+    <div id="page-students" class="page">
+      <div class="page-title">Students</div>
+      <div class="page-sub">All registered student accounts.</div>
+      <div id="studentList"><div class="empty-state"><div class="icon">⏳</div><h3>Loading…</h3></div></div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /shell -->
+
+<!-- Terminate session modal -->
+<div class="modal-overlay" id="terminateModal">
+  <div class="modal">
+    <h3 style="color:var(--danger);">Terminate Session</h3>
+    <p>Enter a reason for terminating this session. The student will be notified immediately.</p>
+    <div class="form-group">
+      <label>Reason</label>
+      <input type="text" id="terminateReason" placeholder="e.g. Suspicious behaviour detected"/>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="document.getElementById('terminateModal').classList.remove('show')">Cancel</button>
+      <button class="btn btn-danger" id="confirmTerminateBtn">Terminate</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="js/api.js"></script>
+<script>
+  Auth.requireRole('ADMIN');
+  populateHeader();
+
+  let allAdminExams = [];
+  let terminateSessionId = null;
+  let liveRefreshHandle  = null;
+
+  /* ── Navigation ──────────────────────────────────────────────────────────── */
+  function nav(page, el) {
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('page-' + page).classList.add('active');
+
+    clearInterval(liveRefreshHandle);
+
+    const loaders = {
+      exams: loadAllExams,
+      live: () => { loadLiveSessions(); liveRefreshHandle = setInterval(loadLiveSessions, 15000); },
+      students: loadStudents,
+    };
+    if (loaders[page]) loaders[page]();
+    if (['questions','results','violations'].includes(page)) populateExamSelects();
+  }
+
+  /* ── Load all exams ──────────────────────────────────────────────────────── */
+  async function loadAllExams() {
+    const el = document.getElementById('examList');
+    el.innerHTML = '<div class="empty-state"><div class="icon">⏳</div><h3>Loading…</h3></div>';
+    try {
+      allAdminExams = await API.get('/api/admin/exams');
+      if (!allAdminExams.length) {
+        el.innerHTML = '<div class="empty-state"><div class="icon">📋</div><h3>No exams yet</h3><p>Create your first exam using the sidebar.</p></div>';
+        return;
+      }
+      el.innerHTML = allAdminExams.map(exam => `
+        <div class="exam-row">
+          <div class="exam-row-left">
+            <div class="exam-row-title">${escHtml(exam.title)}</div>
+            <div class="exam-row-meta">
+              <span>⏱ ${formatDuration(exam.durationMinutes)}</span>
+              <span>📅 ${formatDate(exam.startTime)}</span>
+              <span>🔚 ${formatDate(exam.endTime)}</span>
+              ${exam.isActive ? '<span class="badge badge-green">Active</span>' : '<span class="badge badge-gray">Inactive</span>'}
+            </div>
+          </div>
+          <div class="exam-row-actions">
+            <button class="btn btn-ghost btn-sm" onclick="viewExamStats(${exam.id})">📊 Stats</button>
+            <button class="btn btn-danger btn-sm" onclick="deactivateExam(${exam.id},'${escHtml(exam.title)}')">Deactivate</button>
+          </div>
+        </div>`).join('');
+    } catch (err) {
+      el.innerHTML = `<div class="empty-state"><div class="icon">⚠️</div><h3>${err.message}</h3></div>`;
+    }
+  }
+
+  async function deactivateExam(id, title) {
+    if (!confirm(`Deactivate "${title}"? Students will no longer be able to start it.`)) return;
+    try {
+      await API.delete(`/api/admin/exams/${id}`);
+      showToast('Exam deactivated.', 'success');
+      loadAllExams();
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  async function viewExamStats(examId) {
+    try {
+      const stats = await API.get(`/api/admin/exams/${examId}/stats`);
+      alert(`Exam Stats:\nTotal sessions: ${stats.totalSessions}\nSubmitted: ${stats.submitted}\nTerminated: ${stats.terminated}\nIn progress: ${stats.inProgress}\nAverage score: ${stats.averageScore}\nTotal violations: ${stats.totalViolations}`);
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  /* ── Create exam ─────────────────────────────────────────────────────────── */
+  async function createExam() {
+    showAlert('createAlert', '');
+    const title    = document.getElementById('cTitle').value.trim();
+    const desc     = document.getElementById('cDesc').value.trim();
+    const start    = document.getElementById('cStart').value;
+    const end      = document.getElementById('cEnd').value;
+    const duration = +document.getElementById('cDuration').value;
+    const maxViol  = +document.getElementById('cMaxViol').value;
+    const frameInt = +document.getElementById('cFrameInt').value;
+    const webcam   = +document.getElementById('cWebcam').value;
+
+    if (!title || !start || !end) {
+      showAlert('createAlert', 'Title, start time, and end time are required.', 'error'); return;
+    }
+    if (new Date(end) <= new Date(start)) {
+      showAlert('createAlert', 'End time must be after start time.', 'error'); return;
+    }
+
+    const btn     = document.querySelector('#page-create .btn-primary');
+    const spinner = document.getElementById('createSpinner');
+    const btnText = document.getElementById('createBtnText');
+    btn.disabled = true; spinner.classList.add('show'); btnText.textContent = 'Creating…';
+
+    try {
+      const exam = await API.post('/api/admin/exams', {
+        title, description: desc,
+        startTime: start, endTime: end,
+        durationMinutes: duration,
+        maxViolations: maxViol,
+        frameCaptureInterval: frameInt,
+        webcamRequired: webcam,
+      });
+      showAlert('createAlert', `Exam "${exam.title}" created successfully! (ID: ${exam.id})`, 'success');
+      allAdminExams.push(exam);
+      resetCreateForm();
+    } catch (err) {
+      showAlert('createAlert', err.message, 'error');
+    } finally {
+      btn.disabled = false; spinner.classList.remove('show'); btnText.textContent = 'Create Exam';
+    }
+  }
+
+  function resetCreateForm() {
+    ['cTitle','cDesc','cStart','cEnd'].forEach(id => { document.getElementById(id).value = ''; });
+    document.getElementById('cDuration').value = '60';
+    document.getElementById('cMaxViol').value  = '5';
+    document.getElementById('cFrameInt').value = '10';
+    document.getElementById('cWebcam').value   = '1';
+  }
+
+  /* ── Questions ───────────────────────────────────────────────────────────── */
+  function selectAnswer(letter, el) {
+    document.querySelectorAll('.answer-opt').forEach(b => b.classList.remove('sel'));
+    el.classList.add('sel');
+    document.getElementById('qCorrect').value = letter;
+  }
+
+  function populateExamSelects() {
+    if (!allAdminExams.length) API.get('/api/admin/exams').then(e => { allAdminExams = e; fillSelects(); }).catch(() => {});
+    else fillSelects();
+  }
+
+  function fillSelects() {
+    const opts = allAdminExams.map(e => `<option value="${e.id}">${escHtml(e.title)}</option>`).join('');
+    ['qExamSelect','resExamSelect','violExamSelect'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = '<option value="">— Choose an exam —</option>' + opts;
+    });
+  }
+
+  async function loadQuestions() {
+    const id = document.getElementById('qExamSelect').value;
+    if (!id) return;
+    try {
+      const qs = await API.get(`/api/admin/exams/${id}/questions`);
+      const wrap = document.getElementById('qListWrap');
+      const list = document.getElementById('qList');
+      document.getElementById('addQForm').style.display = 'block';
+      document.getElementById('qListTitle').textContent = `${qs.length} question${qs.length !== 1 ? 's' : ''}`;
+      wrap.style.display = 'block';
+      list.innerHTML = qs.length ? qs.map(q => `
+        <div class="q-item">
+          <div class="q-item-head">
+            <div class="q-text">${escHtml(q.questionText)}</div>
+            <span class="badge badge-blue">${q.marks} pt${q.marks > 1 ? 's' : ''}</span>
+          </div>
+          <div class="q-opts">
+            <span>A: ${escHtml(q.optionA)}</span>
+            <span>B: ${escHtml(q.optionB)}</span>
+            <span>C: ${escHtml(q.optionC)}</span>
+            <span>D: ${escHtml(q.optionD)}</span>
+          </div>
+          <div class="q-ans mt-8">
+            Correct: <span class="badge badge-green">${q.correctAnswer}</span>
+          </div>
+        </div>`).join('') :
+        '<div class="empty-state" style="padding:20px;"><h3>No questions yet</h3><p>Add questions using the form below.</p></div>';
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  async function addQuestion() {
+    const examId = document.getElementById('qExamSelect').value;
+    if (!examId) { showAlert('addQAlert', 'Select an exam first.', 'error'); return; }
+    const text    = document.getElementById('qText').value.trim();
+    const optA    = document.getElementById('qOptA').value.trim();
+    const optB    = document.getElementById('qOptB').value.trim();
+    const optC    = document.getElementById('qOptC').value.trim();
+    const optD    = document.getElementById('qOptD').value.trim();
+    const correct = document.getElementById('qCorrect').value;
+    const marks   = +document.getElementById('qMarks').value || 1;
+
+    if (!text || !optA || !optB || !optC || !optD || !correct) {
+      showAlert('addQAlert', 'All fields are required including the correct answer.', 'error'); return;
+    }
+    try {
+      await API.post(`/api/admin/exams/${examId}/questions`, {
+        questionText: text, optionA: optA, optionB: optB, optionC: optC, optionD: optD,
+        correctAnswer: correct, marks,
+      });
+      showAlert('addQAlert', 'Question saved!', 'success');
+      clearQForm();
+      loadQuestions();
+    } catch (err) { showAlert('addQAlert', err.message, 'error'); }
+  }
+
+  function clearQForm() {
+    ['qText','qOptA','qOptB','qOptC','qOptD'].forEach(id => { document.getElementById(id).value = ''; });
+    document.getElementById('qMarks').value   = '1';
+    document.getElementById('qCorrect').value = '';
+    document.querySelectorAll('.answer-opt').forEach(b => b.classList.remove('sel'));
+    showAlert('addQAlert', '');
+  }
+
+  /* ── Live sessions ───────────────────────────────────────────────────────── */
+  async function loadLiveSessions() {
+    const el = document.getElementById('liveSessions');
+    try {
+      const sessions = await API.get('/api/admin/sessions/live');
+      if (!sessions.length) {
+        el.innerHTML = '<div class="empty-state"><div class="icon">😴</div><h3>No active sessions</h3><p>No students are currently taking an exam.</p></div>';
+        return;
+      }
+      el.innerHTML = `
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Student</th><th>Exam</th><th>Started</th>
+              <th>Violations</th><th>Actions</th>
+            </tr></thead>
+            <tbody>
+              ${sessions.map(s => `
+                <tr>
+                  <td>
+                    <strong>${escHtml(s.studentName || 'Student #' + s.studentId)}</strong><br>
+                    <span class="text-muted f-sm">${escHtml(s.studentEmail || '')}</span>
+                  </td>
+                  <td>${escHtml(s.examTitle || 'Exam #' + s.examId)}</td>
+                  <td class="text-muted">${timeAgo(s.startedAt)}</td>
+                  <td>${s.violationCount > 0 ? `<span class="badge badge-red">${s.violationCount}</span>` : '0'}</td>
+                  <td>
+                    <div style="display:flex;gap:6px;">
+                      <button class="btn btn-ghost btn-sm" onclick="flagSession(${s.id})">🚩 Flag</button>
+                      <button class="btn btn-danger btn-sm" onclick="openTerminate(${s.id})">Terminate</button>
+                    </div>
+                  </td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>`;
+    } catch (err) {
+      el.innerHTML = `<div class="empty-state"><div class="icon">⚠️</div><h3>${err.message}</h3></div>`;
+    }
+  }
+
+  async function flagSession(id) {
+    try {
+      await API.post(`/api/admin/sessions/${id}/flag`, { flagged: true });
+      showToast('Session flagged for review.', 'success');
+      loadLiveSessions();
+    } catch (err) { showToast(err.message, 'error'); }
+  }
+
+  function openTerminate(id) {
+    terminateSessionId = id;
+    document.getElementById('terminateReason').value = '';
+    document.getElementById('terminateModal').classList.add('show');
+  }
+
+  document.getElementById('confirmTerminateBtn').addEventListener('click', async () => {
+    if (!terminateSessionId) return;
+    const reason = document.getElementById('terminateReason').value.trim() || 'Terminated by admin';
+    try {
+      await API.post(`/api/admin/sessions/${terminateSessionId}/terminate`, { reason });
+      document.getElementById('terminateModal').classList.remove('show');
+      showToast('Session terminated.', 'success');
+      loadLiveSessions();
+    } catch (err) { showToast(err.message, 'error'); }
+  });
+
+  /* ── Results ─────────────────────────────────────────────────────────────── */
+  async function loadResults() {
+    const id = document.getElementById('resExamSelect').value;
+    if (!id) return;
+    const list = document.getElementById('resultsList');
+    try {
+      const [sessions, stats] = await Promise.all([
+        API.get(`/api/admin/exams/${id}/results`),
+        API.get(`/api/admin/exams/${id}/stats`),
+      ]);
+
+      // Stats cards
+      document.getElementById('statsCards').style.display = 'block';
+      document.getElementById('examStats').innerHTML = [
+        { val: stats.totalSessions, lbl: 'Total', cls: '' },
+        { val: stats.submitted,     lbl: 'Submitted', cls: 'green' },
+        { val: stats.terminated,    lbl: 'Terminated', cls: 'red' },
+        { val: stats.inProgress,    lbl: 'In Progress', cls: '' },
+        { val: stats.averageScore + '%', lbl: 'Avg Score', cls: 'green' },
+        { val: stats.totalViolations, lbl: 'Violations', cls: stats.totalViolations > 0 ? 'red' : '' },
+      ].map(s => `<div class="stat-card ${s.cls}"><div class="stat-val">${s.val}</div><div class="stat-lbl">${s.lbl}</div></div>`).join('');
+
+      if (!sessions.length) {
+        list.innerHTML = '<div class="empty-state"><div class="icon">📊</div><h3>No submitted results yet</h3></div>';
+        return;
+      }
+      list.innerHTML = `
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>Student</th><th>Score</th><th>Percentage</th><th>Violations</th><th>Flagged</th><th>Submitted</th></tr></thead>
+            <tbody>
+              ${sessions.map((s, i) => {
+                const pct = s.totalMarks ? Math.round((s.score / s.totalMarks) * 100) : 0;
+                return `<tr>
+                  <td class="text-muted">${i+1}</td>
+                  <td><strong>${escHtml(s.studentName || 'Student #' + s.studentId)}</strong></td>
+                  <td>${s.score != null ? `${s.score} / ${s.totalMarks}` : '—'}</td>
+                  <td>
+                    <div class="percentage-bar">
+                      <div class="pct-track"><div class="pct-fill" style="width:${pct}%"></div></div>
+                      <span class="f-sm">${pct}%</span>
+                    </div>
+                  </td>
+                  <td>${s.violationCount > 0 ? `<span class="badge badge-red">${s.violationCount}</span>` : '0'}</td>
+                  <td>${s.isFlagged ? '<span class="badge badge-yellow">🚩 Flagged</span>' : '—'}</td>
+                  <td class="text-muted">${formatDateShort(s.submittedAt)}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>`;
+    } catch (err) {
+      list.innerHTML = `<div class="empty-state"><div class="icon">⚠️</div><h3>${err.message}</h3></div>`;
+    }
+  }
+
+  /* ── Violations ──────────────────────────────────────────────────────────── */
+  async function loadViolations() {
+    const id = document.getElementById('violExamSelect').value;
+    if (!id) return;
+    const el = document.getElementById('violationsList');
+    try {
+      const violations = await API.get(`/api/admin/exams/${id}/violations`);
+      if (!violations.length) {
+        el.innerHTML = '<div class="empty-state"><div class="icon">✅</div><h3>No violations recorded</h3></div>';
+        return;
+      }
+      el.innerHTML = `
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Student</th><th>Type</th><th>Severity</th><th>AI Confidence</th><th>Description</th><th>Time</th></tr></thead>
+            <tbody>
+              ${violations.map(v => `<tr>
+                <td><strong>${escHtml(v.studentName || 'Student #' + v.studentId)}</strong></td>
+                <td><code style="font-size:11px;">${v.violationType}</code></td>
+                <td>${violationSeverityBadge(v.severity)}</td>
+                <td>${v.aiConfidence != null ? Math.round(v.aiConfidence) + '%' : '—'}</td>
+                <td class="text-muted">${escHtml(v.description || '—')}</td>
+                <td class="text-muted">${formatDateShort(v.detectedAt)}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>`;
+    } catch (err) {
+      el.innerHTML = `<div class="empty-state"><div class="icon">⚠️</div><h3>${err.message}</h3></div>`;
+    }
+  }
+
+  /* ── Students ────────────────────────────────────────────────────────────── */
+  async function loadStudents() {
+    const el = document.getElementById('studentList');
+    try {
+      const students = await API.get('/api/admin/students');
+      if (!students.length) {
+        el.innerHTML = '<div class="empty-state"><div class="icon">🎓</div><h3>No students registered</h3></div>';
+        return;
+      }
+      el.innerHTML = `
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Registered</th></tr></thead>
+            <tbody>
+              ${students.map(s => `<tr>
+                <td><strong>${escHtml(s.name)}</strong></td>
+                <td class="text-muted">${escHtml(s.email)}</td>
+                <td><span class="badge badge-blue">STUDENT</span></td>
+                <td class="text-muted">${formatDateShort(s.createdAt)}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>`;
+    } catch (err) {
+      el.innerHTML = `<div class="empty-state"><div class="icon">⚠️</div><h3>${err.message}</h3></div>`;
+    }
+  }
+
+  function escHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  /* ── Init ────────────────────────────────────────────────────────────────── */
+  loadAllExams();
+</script>
+</body>
+</html>

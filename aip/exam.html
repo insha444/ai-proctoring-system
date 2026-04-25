@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Exam — AI Proctor</title>
+<link rel="stylesheet" href="css/shared.css"/>
+<style>
+body{display:flex;flex-direction:column;user-select:none;-webkit-user-select:none}
+/* topbar */
+#topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 20px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;gap:12px}
+#examTitle{font-size:14px;font-weight:600;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+#timer{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--success);transition:color .3s;min-width:78px;text-align:center}
+#timer.warn{color:var(--warn)}#timer.danger{color:var(--danger);animation:blink .8s step-end infinite}
+#topRight{display:flex;align-items:center;gap:12px;flex-shrink:0}
+/* webcam */
+#camWrap{width:80px;height:60px;border-radius:6px;overflow:hidden;border:2px solid var(--success);position:relative;background:#000;flex-shrink:0}
+#camWrap.warn{border-color:var(--warn)}#camWrap.error{border-color:var(--danger);animation:blink .8s step-end infinite}
+#camVideo{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+#camLabel{position:absolute;bottom:2px;left:0;right:0;text-align:center;font-size:9px;color:#fff;background:rgba(0,0,0,.6);padding:1px 0}
+/* violation badge */
+#violBadge{font-size:12px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:4px 12px;display:flex;align-items:center;gap:6px;white-space:nowrap}
+#violBadge .dot{width:8px;height:8px;border-radius:50%;background:var(--success);transition:background .3s;flex-shrink:0}
+#violBadge.warn .dot{background:var(--warn)}#violBadge.danger .dot{background:var(--danger);animation:blink .8s step-end infinite}
+/* main grid */
+#mainGrid{flex:1;display:grid;grid-template-columns:1fr 224px;max-width:1200px;width:100%;margin:0 auto;padding:24px 16px;gap:0;min-height:0}
+#qArea{padding-right:20px;min-width:0}
+#qHeader{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+#qNum{font-size:13px;color:var(--muted)}
+#qMarks{font-size:12px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:3px 10px;color:var(--accent)}
+#qText{font-size:16px;line-height:1.65;margin-bottom:22px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px}
+.opt{display:flex;align-items:flex-start;gap:14px;border:2px solid var(--border);border-radius:var(--radius);padding:13px 16px;margin-bottom:10px;cursor:pointer;transition:border-color .15s,background .15s;user-select:none}
+.opt:hover{border-color:var(--accent);background:rgba(47,129,247,.05)}
+.opt.sel{border-color:var(--accent);background:rgba(47,129,247,.11)}
+.opt-l{width:30px;height:30px;border-radius:50%;background:var(--surface2);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;transition:.15s}
+.opt.sel .opt-l{background:var(--accent);border-color:var(--accent);color:#fff}
+.opt-t{font-size:14px;line-height:1.5;padding-top:4px}
+#saveStatus{font-size:12px;color:var(--muted);min-height:18px;text-align:right;margin-top:4px}
+#saveStatus.ok{color:var(--success)}#saveStatus.err{color:var(--danger)}
+#navRow{display:flex;align-items:center;gap:10px;margin-top:22px}
+#btnSubmit{margin-left:auto}
+/* palette */
+#palWrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;align-self:start;position:sticky;top:68px}
+#palWrap h4{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px}
+#palette{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
+.pal-btn{aspect-ratio:1;border-radius:6px;font-size:11px;font-weight:600;border:2px solid var(--border);background:var(--surface2);color:var(--muted);cursor:pointer;transition:.12s;width:100%}
+.pal-btn.answered{background:rgba(63,185,80,.18);border-color:var(--success);color:var(--success)}
+.pal-btn.current{background:var(--accent);border-color:var(--accent);color:#fff}
+.pal-btn:hover:not(.current){border-color:var(--accent)}
+#ansCount{margin-top:12px;font-size:12px;color:var(--muted)}#ansCount strong{color:var(--text)}
+.leg{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);margin-top:5px}
+.leg-d{width:10px;height:10px;border-radius:3px}
+/* overlays */
+#camGate{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:700;gap:14px;text-align:center;padding:24px}
+#camGate.hidden{display:none}
+#fsOverlay{position:fixed;inset:0;background:rgba(0,0,0,.88);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:600;gap:16px;text-align:center;padding:24px}
+#fsOverlay.show{display:flex}
+#fsOverlay h2{color:var(--danger);font-size:22px}
+#resultScreen{position:fixed;inset:0;background:var(--bg);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:800;text-align:center;padding:24px}
+#resultScreen.show{display:flex}
+#rPct{font-size:58px;font-weight:800;color:var(--accent)}
+#rScore{font-size:16px;color:var(--muted);margin:8px 0 24px}
+#termOverlay{position:fixed;inset:0;background:rgba(0,0,0,.8);display:none;align-items:center;justify-content:center;z-index:700}
+#termOverlay.show{display:flex}
+#violToast{position:fixed;top:68px;left:50%;transform:translateX(-50%) translateY(-80px);background:#7c1d1d;border:1px solid var(--danger);color:#fca5a5;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:600;z-index:300;opacity:0;transition:.3s;pointer-events:none;white-space:nowrap}
+#violToast.show{transform:translateX(-50%) translateY(0);opacity:1}
+
+/* Screenshot flash effect */
+#snapFlash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:9999;transition:opacity .1s}
+#snapFlash.flash{opacity:.6}
+
+/* Lockdown warning */
+#lockdownWarn{position:fixed;top:68px;right:16px;background:var(--warn-bg);border:1px solid #ffe08a;color:var(--warn);border-radius:var(--radius);padding:10px 16px;font-size:12px;font-weight:600;z-index:400;opacity:0;transform:translateY(-10px);transition:.3s;pointer-events:none}
+#lockdownWarn.show{opacity:1;transform:translateY(0)}
+
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+@media(max-width:700px){#mainGrid{grid-template-columns:1fr}#palWrap{position:static}#qArea{padding-right:0}}
+</style>
+</head>
+<body>
+
+<!-- Screenshot flash overlay -->
+<div id="snapFlash"></div>
+
+<!-- Lockdown warning -->
+<div id="lockdownWarn">Action blocked during exam</div>
+
+<!-- Webcam gate -->
+<div id="camGate">
+  <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5" style="margin-bottom:8px"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+  <h2 style="font-size:22px">Webcam Required</h2>
+  <p style="font-size:13px;color:var(--muted);max-width:380px;line-height:1.6">This exam requires your webcam. Please allow camera access when your browser prompts you.</p>
+  <button class="btn btn-primary btn-lg" id="btnAllowCam">Allow Camera & Begin</button>
+  <p style="font-size:11px;color:var(--muted2)">Camera access is mandatory. Denying it will prevent the exam from starting.</p>
+</div>
+
+<!-- Top bar -->
+<div id="topbar">
+  <div id="examTitle">Loading exam...</div>
+  <div id="timer">--:--</div>
+  <div id="topRight">
+    <div id="violBadge"><div class="dot"></div><span id="violText">0 violations</span></div>
+    <div id="camWrap"><video id="camVideo" autoplay playsinline muted></video><div id="camLabel">LIVE</div></div>
+  </div>
+</div>
+
+<!-- Main -->
+<div id="mainGrid">
+  <div id="qArea">
+    <div id="qHeader"><span id="qNum">Question — of —</span><span id="qMarks">—</span></div>
+    <div id="qText">Loading...</div>
+    <div id="options"></div>
+    <div id="saveStatus"></div>
+    <div id="navRow">
+      <button class="btn btn-ghost" id="btnPrev" disabled>← Prev</button>
+      <button class="btn btn-ghost" id="btnNext">Next →</button>
+      <button class="btn btn-danger" id="btnSubmit">Submit Exam</button>
+    </div>
+  </div>
+  <div id="palWrap">
+    <h4>Questions</h4>
+    <div id="palette"></div>
+    <div id="ansCount">Answered: <strong id="aCnt">0</strong> / <strong id="aTot">—</strong></div>
+    <div class="leg"><div class="leg-d" style="background:var(--accent)"></div>Current</div>
+    <div class="leg"><div class="leg-d" style="background:rgba(63,185,80,.5)"></div>Answered</div>
+    <div class="leg"><div class="leg-d" style="background:var(--surface2);border:1px solid var(--border)"></div>Not answered</div>
+  </div>
+</div>
+
+<!-- Fullscreen warning -->
+<div id="fsOverlay">
+  <h2>Fullscreen Exited</h2>
+  <p style="color:var(--muted);font-size:14px;max-width:400px;line-height:1.6">This exit has been recorded as a violation. Please return to fullscreen to continue.</p>
+  <button class="btn btn-primary btn-lg" onclick="enterFS()">Re-enter Fullscreen</button>
+</div>
+
+<!-- Submit confirm -->
+<div class="modal-overlay" id="submitModal">
+  <div class="modal">
+    <h3>Submit Exam?</h3>
+    <p>You've answered <strong id="mAns">—</strong> of <strong id="mTot">—</strong> questions. This cannot be undone.</p>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="document.getElementById('submitModal').classList.remove('show')">Cancel</button>
+      <button class="btn btn-danger" id="btnConfirmSubmit">Submit Now</button>
+    </div>
+  </div>
+</div>
+
+<!-- Terminated -->
+<div id="termOverlay">
+  <div class="modal" style="text-align:center">
+    <h3 style="color:var(--danger)">Exam Terminated</h3>
+    <p id="termMsg">Your exam has been terminated due to repeated violations.</p>
+    <button class="btn btn-ghost" onclick="location.href='dashboard.html'">Go to Dashboard</button>
+  </div>
+</div>
+
+<!-- Result screen -->
+<div id="resultScreen">
+  <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="1.5" style="margin-bottom:16px"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+  <h1 style="font-size:26px;margin-bottom:8px">Exam Submitted</h1>
+  <div id="rPct">—%</div>
+  <div id="rScore">— / — marks</div>
+  <p id="rViol" style="font-size:13px;color:var(--muted);margin-bottom:28px">Violations recorded: 0</p>
+  <button class="btn btn-primary btn-lg" onclick="location.href='dashboard.html'">Back to Dashboard</button>
+</div>
+
+<div id="violToast"></div>
+<canvas id="snapCanvas" style="display:none"></canvas>
+<!-- Hidden canvas for violation screenshots -->
+<canvas id="violSnapCanvas" style="display:none"></canvas>
+
+<script src="js/api.js"></script>
+<script src="js/webcam.js"></script>
+<script src="js/tabMonitor.js"></script>
+<script src="js/fullscreenManager.js"></script>
+<script>
+Auth.requireRole('STUDENT');
+const sessionId = localStorage.getItem('currentSessionId');
+const examId    = localStorage.getItem('currentExamId');
+if (!sessionId || !examId) { location.href = 'dashboard.html'; }
+
+let questions=[], answers={}, currentIdx=0, violCnt=0, maxViol=5, terminated=false;
+let timerH=null, heartH=null, frameH=null;
+
+/* ══════════════════════════════════════════════════════
+   BROWSER LOCKDOWN
+══════════════════════════════════════════════════════ */
+const BrowserLockdown = (() => {
+
+  function showWarn(msg) {
+    const el = document.getElementById('lockdownWarn');
+    el.textContent = msg || 'Action blocked during exam';
+    el.classList.add('show');
+    clearTimeout(el._t);
+    el._t = setTimeout(() => el.classList.remove('show'), 2500);
+  }
+
+  function init() {
+    // Block right-click context menu
+    document.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      showWarn('Right-click is disabled during exam');
+    });
+
+    // Block copy, cut, paste
+    document.addEventListener('copy',  e => { e.preventDefault(); showWarn('Copy is disabled during exam'); });
+    document.addEventListener('cut',   e => { e.preventDefault(); showWarn('Cut is disabled during exam'); });
+    document.addEventListener('paste', e => { e.preventDefault(); showWarn('Paste is disabled during exam'); });
+
+    // Block keyboard shortcuts
+    document.addEventListener('keydown', e => {
+      const blocked = [
+        e.ctrlKey && ['c','v','x','a','p','s','u','f','g','h','j','k','l','n','r','t','w'].includes(e.key.toLowerCase()),
+        e.altKey  && ['F4','Tab','Left','Right'].includes(e.key),
+        e.key === 'F12',
+        e.key === 'F5',
+        e.key === 'PrintScreen',
+        e.ctrlKey && e.shiftKey && ['I','J','C','K'].includes(e.key.toUpperCase()),
+        e.ctrlKey && e.altKey,
+      ];
+
+      if (blocked.some(Boolean)) {
+        e.preventDefault();
+        e.stopPropagation();
+        showWarn('Keyboard shortcut blocked');
+        return false;
+      }
+    }, true);
+
+    // Block drag and drop
+    document.addEventListener('dragstart', e => e.preventDefault());
+    document.addEventListener('drop',      e => e.preventDefault());
+
+    // Disable text selection via CSS (already in body style)
+    // Detect PrintScreen via keyup (can't fully block but can log)
+    document.addEventListener('keyup', e => {
+      if (e.key === 'PrintScreen') {
+        showWarn('Screenshot detected');
+        logViolation('TAB_SWITCH', 'PrintScreen key detected during exam');
+      }
+    });
+
+    console.info('[Lockdown] Browser lockdown active');
+  }
+
+  return { init };
+})();
+
+/* ══════════════════════════════════════════════════════
+   SCREENSHOT ON VIOLATION
+══════════════════════════════════════════════════════ */
+async function captureViolationSnapshot() {
+  try {
+    const video   = document.getElementById('camVideo');
+    const canvas  = document.getElementById('violSnapCanvas');
+    if (!video || video.readyState < 2) return null;
+    canvas.width  = 320;
+    canvas.height = 240;
+    canvas.getContext('2d').drawImage(video, 0, 0, 320, 240);
+
+    // Flash effect to signal capture
+    const flash = document.getElementById('snapFlash');
+    flash.classList.add('flash');
+    setTimeout(() => flash.classList.remove('flash'), 200);
+
+    return canvas.toDataURL('image/jpeg', 0.7).split(',')[1];
+  } catch(e) {
+    return null;
+  }
+}
+
+/* ══════════════════════════════════════════════════════
+   WEBCAM GATE
+══════════════════════════════════════════════════════ */
+document.getElementById('btnAllowCam').addEventListener('click', async () => {
+  const btn = document.getElementById('btnAllowCam');
+  btn.disabled = true; btn.textContent = 'Starting camera...';
+  WebcamMonitor.onError = msg => {
+    document.querySelector('#camGate p').textContent = msg + ' Reload the page to try again.';
+    btn.disabled = false; btn.textContent = 'Retry Camera Access';
+    document.getElementById('camWrap').className = 'error';
+  };
+  const ok = await WebcamMonitor.start(
+    document.getElementById('camVideo'),
+    document.getElementById('snapCanvas'),
+    +sessionId, Auth.getToken()
+  );
+  if (ok) {
+    document.getElementById('camGate').classList.add('hidden');
+    await initExam();
+    enterFS();
+    BrowserLockdown.init(); // activate lockdown after exam starts
+  }
+});
+
+/* ══════════════════════════════════════════════════════
+   FULLSCREEN
+══════════════════════════════════════════════════════ */
+function enterFS() {
+  const e = document.documentElement;
+  const r = e.requestFullscreen || e.webkitRequestFullscreen || e.mozRequestFullScreen;
+  if (r) r.call(e).catch(()=>{});
+}
+function isFS() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+
+['fullscreenchange','webkitfullscreenchange'].forEach(ev => {
+  document.addEventListener(ev, async () => {
+    if (!isFS() && !terminated && questions.length > 0) {
+      document.getElementById('fsOverlay').classList.add('show');
+      const snap = await captureViolationSnapshot();
+      logViolation('FULLSCREEN_EXIT', 'Student exited fullscreen mode', snap);
+    } else {
+      document.getElementById('fsOverlay').classList.remove('show');
+    }
+  });
+});
+
+TabMonitor.onAlert = async ({type, message}) => {
+  violToast(message);
+  const snap = await captureViolationSnapshot();
+  logViolation(type, message, snap);
+};
+
+/* ══════════════════════════════════════════════════════
+   INIT EXAM
+══════════════════════════════════════════════════════ */
+async function initExam() {
+  try {
+    const [exam, qs] = await Promise.all([
+      API.get(`/api/exams/${examId}`),
+      API.get(`/api/exams/${examId}/questions`)
+    ]);
+    document.title = exam.title + ' — AI Proctor';
+    document.getElementById('examTitle').textContent = exam.title;
+    maxViol   = exam.maxViolations || 5;
+    questions = qs;
+    document.getElementById('aTot').textContent = qs.length;
+    try {
+      const sv = await API.get(`/api/sessions/${sessionId}/answers`);
+      sv.forEach(a => { if(a.selectedAnswer) answers[a.questionId] = a.selectedAnswer; });
+    } catch(_) {}
+    buildPalette(); renderQ(0);
+    startTimer(exam.durationMinutes || 60);
+    heartH = setInterval(heartbeat, 15000);
+    frameH = setInterval(captureFrame, (exam.frameCaptureInterval || 10) * 1000);
+    TabMonitor.start(+sessionId, Auth.getToken());
+  } catch(err) {
+    violToast('Failed to load exam: ' + err.message);
+  }
+}
+
+/* ══════════════════════════════════════════════════════
+   TIMER
+══════════════════════════════════════════════════════ */
+function startTimer(mins) {
+  let rem = mins * 60;
+  const el = document.getElementById('timer');
+  timerH = setInterval(() => {
+    if (terminated) return;
+    rem--;
+    el.textContent = String(Math.floor(rem/60)).padStart(2,'0') + ':' + String(rem%60).padStart(2,'0');
+    el.className = rem<=300 ? 'danger' : rem<=600 ? 'warn' : '';
+    if (rem <= 0) { clearInterval(timerH); violToast('Time is up. Submitting...'); setTimeout(doSubmit, 1500); }
+  }, 1000);
+}
+
+/* ══════════════════════════════════════════════════════
+   QUESTION RENDER
+══════════════════════════════════════════════════════ */
+function renderQ(idx) {
+  currentIdx = idx;
+  const q = questions[idx];
+  document.getElementById('qNum').textContent   = `Question ${idx+1} of ${questions.length}`;
+  document.getElementById('qMarks').textContent = `${q.marks||1} mark${q.marks>1?'s':''}`;
+  document.getElementById('qText').textContent  = q.questionText;
+  document.getElementById('saveStatus').textContent = '';
+  document.getElementById('saveStatus').className   = '';
+  const letters = ['A','B','C','D'];
+  const texts   = [q.optionA, q.optionB, q.optionC, q.optionD];
+  document.getElementById('options').innerHTML = texts.map((t,i) => !t ? '' :
+    `<div class="opt${answers[q.id]===letters[i]?' sel':''}" onclick="selectAns(${q.id},'${letters[i]}',this)">
+      <div class="opt-l">${letters[i]}</div><div class="opt-t">${esc(t)}</div>
+    </div>`).join('');
+  document.getElementById('btnPrev').disabled = idx === 0;
+  document.getElementById('btnNext').disabled = idx === questions.length - 1;
+  updatePalette();
+}
+
+async function selectAns(qId, answer, el) {
+  if (terminated) return;
+  answers[qId] = answer;
+  document.querySelectorAll('.opt').forEach(o => o.classList.remove('sel'));
+  el.classList.add('sel');
+  updatePalette();
+  const ss = document.getElementById('saveStatus');
+  ss.textContent = 'Saving...'; ss.className = '';
+  try {
+    await API.post(`/api/sessions/${sessionId}/answer`, { questionId: qId, selectedAnswer: answer });
+    ss.textContent = 'Saved'; ss.className = 'ok';
+    setTimeout(() => { ss.textContent = ''; }, 2000);
+  } catch(_) {
+    ss.textContent = 'Save failed'; ss.className = 'err';
+  }
+}
+
+/* ══════════════════════════════════════════════════════
+   PALETTE
+══════════════════════════════════════════════════════ */
+function buildPalette() {
+  document.getElementById('palette').innerHTML = questions.map((q,i) =>
+    `<button class="pal-btn" id="pal${i}" onclick="renderQ(${i})">${i+1}</button>`).join('');
+}
+function updatePalette() {
+  document.getElementById('aCnt').textContent = Object.keys(answers).length;
+  questions.forEach((q,i) => {
+    const b = document.getElementById('pal'+i);
+    if (!b) return;
+    b.className = 'pal-btn' + (i===currentIdx ? ' current' : answers[q.id] ? ' answered' : '');
+  });
+}
+
+/* ══════════════════════════════════════════════════════
+   NAV & SUBMIT
+══════════════════════════════════════════════════════ */
+document.getElementById('btnPrev').addEventListener('click', () => { if(currentIdx>0) renderQ(currentIdx-1); });
+document.getElementById('btnNext').addEventListener('click', () => { if(currentIdx<questions.length-1) renderQ(currentIdx+1); });
+
+document.getElementById('btnSubmit').addEventListener('click', () => {
+  if (terminated) return;
+  document.getElementById('mAns').textContent = Object.keys(answers).length;
+  document.getElementById('mTot').textContent = questions.length;
+  document.getElementById('submitModal').classList.add('show');
+});
+document.getElementById('btnConfirmSubmit').addEventListener('click', () => {
+  document.getElementById('submitModal').classList.remove('show');
+  doSubmit();
+});
+
+async function doSubmit() {
+  if (terminated) return;
+  stopAll();
+  try {
+    const r = await API.post(`/api/sessions/${sessionId}/submit`, {});
+    showResult(r);
+  } catch(err) { violToast('Submit failed: ' + err.message); }
+}
+
+function showResult(r) {
+  clearInterval(timerH);
+  const pct = Math.round(r.percentage || 0);
+  document.getElementById('rPct').textContent   = pct + '%';
+  document.getElementById('rScore').textContent = `${r.score||0} / ${r.totalMarks||0} marks`;
+  document.getElementById('rViol').textContent  = `Violations recorded: ${violCnt}`;
+  document.getElementById('resultScreen').classList.add('show');
+  if (document.exitFullscreen && document.fullscreenElement) document.exitFullscreen().catch(()=>{});
+}
+
+/* ══════════════════════════════════════════════════════
+   VIOLATIONS — now with optional snapshot
+══════════════════════════════════════════════════════ */
+async function logViolation(type, desc, snapshotBase64 = null) {
+  if (!sessionId || terminated) return;
+  try {
+    const payload = {
+      sessionId:    +sessionId,
+      violationType: type,
+      description:   desc,
+    };
+    // Attach snapshot if available — stored in snapshotUrl field as base64 data URI
+    if (snapshotBase64) {
+      payload.snapshotUrl = 'data:image/jpeg;base64,' + snapshotBase64;
+    }
+    const r = await API.post('/api/violations', payload);
+    violCnt = r.sessionViolationCount || violCnt + 1;
+    updateViolBadge();
+    const labels = {
+      TAB_SWITCH:      'Tab switch detected',
+      FULLSCREEN_EXIT: 'Fullscreen exited',
+      MULTIPLE_FACES:  'Multiple faces detected',
+      NO_FACE:         'No face detected',
+      PHONE_DETECTED:  'Phone detected',
+      LOOKING_AWAY:    'Looking away',
+    };
+    violToast((labels[type] || 'Violation') + ` — ${violCnt}/${maxViol}`);
+    if (r.sessionTerminated) handleTerm('Exam terminated: violation limit exceeded.');
+  } catch(_) {}
+}
+
+function updateViolBadge() {
+  document.getElementById('violText').textContent = `${violCnt} violation${violCnt!==1?'s':''}`;
+  const b = document.getElementById('violBadge');
+  const ratio = maxViol > 0 ? violCnt / maxViol : 0;
+  b.className = ratio >= .8 ? 'danger' : ratio >= .5 ? 'warn' : '';
+  b.id = 'violBadge';
+}
+
+async function heartbeat() {
+  if (terminated) return;
+  try {
+    const s = await API.get(`/api/violations/status/${sessionId}`);
+    violCnt = s.violationCount || 0;
+    maxViol = s.maxViolations  || 5;
+    updateViolBadge();
+    if (!s.sessionActive || s.sessionStatus === 'TERMINATED') {
+      handleTerm(s.message || 'Session terminated.');
+    }
+  } catch(_) {}
+}
+
+/* Frame capture — AI analysis (unchanged) */
+async function captureFrame() {
+  if (terminated || !WebcamMonitor.isRunning()) return;
+  try {
+    const v = document.getElementById('camVideo');
+    const c = document.getElementById('snapCanvas');
+    c.width = 320; c.height = 240;
+    c.getContext('2d').drawImage(v, 0, 0, 320, 240);
+    const b64 = c.toDataURL('image/jpeg', .7).split(',')[1];
+    const result = await API.post('/api/violations/analyze-frame', {
+      sessionId: +sessionId,
+      examId:    +examId,
+      frameBase64: b64
+    });
+    // If AI detected violations, capture a snapshot as evidence
+    if (result && result.violations && result.violations.length > 0) {
+      captureViolationSnapshot(); // fire and forget — flash effect only
+    }
+  } catch(_) {}
+}
+
+function handleTerm(reason) {
+  terminated = true;
+  stopAll();
+  if (document.exitFullscreen && document.fullscreenElement) document.exitFullscreen().catch(()=>{});
+  clearInterval(timerH);
+  document.getElementById('termMsg').textContent = reason;
+  document.getElementById('termOverlay').classList.add('show');
+}
+
+function stopAll() {
+  clearInterval(heartH);
+  clearInterval(frameH);
+  WebcamMonitor.stop();
+  TabMonitor.stop();
+}
+
+function violToast(msg) {
+  const t = document.getElementById('violToast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._t);
+  t._t = setTimeout(() => t.classList.remove('show'), 4000);
+}
+</script>
+</body>
+</html>
