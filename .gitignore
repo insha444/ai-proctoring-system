@@ -1,0 +1,6 @@
+backend/target/
+phase4/ai_service/__pycache__/
+phase4/ai_service/*.pyc
+*.class
+*.jar
+.idea/
