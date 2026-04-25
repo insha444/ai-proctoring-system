@@ -3,7 +3,7 @@
  * Provides: API client · Auth · OTP · UI helpers · formatters
  */
 
-const API_BASE = 'http://localhost:8080';
+const API_BASE = 'https://ai-proctoring-system-production.up.railway.app';
 
 /* ────────────────────────────────────────────────────────────
    AUTH
